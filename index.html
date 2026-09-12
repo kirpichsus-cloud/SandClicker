@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Sand Clicker</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --bg-sand: #f4d03f;
+            --dark-sand: #d68910;
+            --accent-orange: #e67e22;
+            --text-color: #4a235a;
+            --card-bg: rgba(255, 255, 255, 0.85);
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(180deg, #f9e79f 0%, #f5b041 100%);
+            color: #3e2723;
+            margin: 0;
+            padding: 15px;
+            user-select: none;
+            min-height: 100vh;
+            box-sizing: border-box;
+            overflow-x: hidden;
+        }
+
+        /* Шапка с песком */
+        .header-board {
+            background: var(--card-bg);
+            border: 3px solid #b9770e;
+            border-radius: 16px;
+            padding: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+            margin-bottom: 15px;
+            backdrop-filter: blur(5px);
+        }
+
+        .sand-title { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #7e5109; margin: 0; }
+        .sand-counter { font-size: 32px; font-weight: 900; color: #d35400; margin: 5px 0; }
+        .cps-info { font-size: 12px; color: #6e2c00; font-weight: 600; }
+
+        /* Навигация */
+        .tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 15px;
+            overflow-x: auto;
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: #e59866;
+            color: white;
+            border: 2px solid #a04000;
+            padding: 8px 4px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .tab-btn.active {
+            background: #d35400;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Кликер Анимации */
+        .click-area {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 30px 0;
+        }
+
+        .sand-btn {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #f8c471 0%, #e67e22 70%, #b9770e 100%);
+            border: 8px solid #784212;
+            font-size: 26px;
+            font-weight: 900;
+            color: #ffffff;
+            text-shadow: 2px 2px 4px #512e07;
+            cursor: pointer;
+            box-shadow: 0 12px 25px rgba(118, 66, 18, 0.4);
+            outline: none;
+            transition: transform 0.05s;
+        }
+
+        .sand-btn:active { transform: scale(0.92); }
+
+        /* Всплывающие эффекты песка */
+        .pop-number {
+            position: absolute;
+            font-weight: 900;
+            font-size: 28px;
+            color: #d35400;
+            text-shadow: 1px 1px 0px #fff;
+            pointer-events: none;
+            animation: popUp 0.8s ease-out forwards;
+        }
+
+        @keyframes popUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-70px) scale(1.3); }
+        }
+
+        /* Буря */
+        .storm-banner {
+            display: none;
+            background: linear-gradient(90deg, #e74c3c, #f39c12);
+            color: white;
+            font-weight: bold;
+            padding: 8px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            animation: pulse 1s infinite alternate;
+        }
+
+        @keyframes pulse { from { opacity: 0.8; } to { opacity: 1; transform: scale(1.02); } }
+
+        /* Сетка Базы */
+        .base-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            background: #edbb99;
+            padding: 10px;
+            border-radius: 12px;
+            border: 3px solid #a04000;
+        }
+
+        .grid-cell {
+            aspect-ratio: 1;
+            background: #f5cba7;
+            border: 2px dashed #b9770e;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            cursor: pointer;
+        }
+
+        /* Карточки товаров */
+        .card-item {
+            background: var(--card-bg);
+            border: 2px solid #e59866;
+            border-radius: 12px;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            text-align: left;
+        }
+
+        .btn-buy {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .btn-buy:disabled { background: #bdc3c7; }
+    </style>
+</head>
+<body>
+
+    <div class="header-board">
+        <div class="sand-title">Ваш запас</div>
+        <div class="sand-counter">⏳ <span id="sand-count">0</span></div>
+        <div class="cps-info">Пассивный доход: <span id="cps-count">0</span> песка/сек</div>
+    </div>
+
+    <!-- Индикатор Песчаной бури -->
+    <div id="storm-banner" class="storm-banner">🌪️ ПЕСЧАНАЯ БУРЯ! КЛИКИ x3! 🌪️</div>
+
+    <!-- Вкладки -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="openTab('clicker-tab')">⏳ Кликер</button>
+        <button class="tab-btn" onclick="openTab('upgrades-tab')">🛠 Улучшения</button>
+        <button class="tab-btn" onclick="openTab('jars-tab')">🏺 Магазин</button>
+        <button class="tab-btn" onclick="openTab('base-tab')">🏜 База</button>
+        <button class="tab-btn" onclick="openTab('digs-tab')">⛏️ Раскопки</button>
+    </div>
+
+    <!-- 1. КЛИКЕР -->
+    <div id="clicker-tab" class="tab-content active">
+        <div class="click-area" id="click-area">
+            <button class="sand-btn" id="sand-btn">КЛИК!</button>
+        </div>
+        <p>Сила клика: ⚡ <span id="click-power-val">1</span></p>
+    </div>
+
+    <!-- 2. УЛУЧШЕНИЯ -->
+    <div id="upgrades-tab" class="tab-content">
+        <div class="card-item">
+            <div>
+                <strong>Сила лопаты (+1 к клику)</strong><br>
+                Уровень: <span id="lvl-shovel">0</span>
+            </div>
+            <button class="btn-buy" onclick="buyUpgrade('shovel')"><span id="cost-shovel">10</span> ⏳</button>
+        </div>
+        <div class="card-item">
+            <div>
+                <strong>Ловец ветра (+1 песок/сек)</strong><br>
+                Уровень: <span id="lvl-wind">0</span>
+            </div>
+            <button class="btn-buy" onclick="buyUpgrade('wind')"><span id="cost-wind">25</span> ⏳</button>
+        </div>
+        <div class="card-item">
+            <div>
+                <strong>Сито мелкого помола</strong><br>
+                <small>Шанс крита x3: +5%</small>
+            </div>
+            <button class="btn-buy" onclick="buyUpgrade('sieve')"><span id="cost-sieve">100</span> ⏳</button>
+        </div>
+        <div class="card-item">
+            <div>
+                <strong>Песчаный термодинамик</strong><br>
+                <small>+15% к доходу всех зданий</small>
+            </div>
+            <button class="btn-buy" onclick="buyUpgrade('thermo')"><span id="cost-thermo">250</span> ⏳</button>
+        </div>
+    </div>
+
+    <!-- 3. МАГАЗИН БАНОЧЕК -->
+    <div id="jars-tab" class="tab-content">
+        <div class="card-item">
+            <div>
+                <strong>🏺 Баночка удвоения</strong><br>
+                <small>Постоянно +2 к клику</small>
+            </div>
+            <button class="btn-buy" id="btn-jar-double" onclick="buyJar('double')">150 ⏳</button>
+        </div>
+        <div class="card-item">
+            <div>
+                <strong>🏺 Вызов Бури (15 сек)</strong><br>
+                <small>Включает клики x5</small>
+            </div>
+            <button class="btn-buy" onclick="buyJar('storm_jar')">300 ⏳</button>
+        </div>
+        <div class="card-item">
+            <div>
+                <strong>🏺 Консервация</strong><br>
+                <small>Мгновенно +500 песка</small>
+            </div>
+            <button class="btn-buy" onclick="buyJar('instant')">400 ⏳</button>
+        </div>
+    </div>
+
+    <!-- 4. БАЗА (Сетка 3х3) -->
+    <div id="base-tab" class="tab-content">
+        <p style="font-size: 12px; margin-top:0;">Нажми на клетку для постройки:</p>
+        <div class="base-grid" id="base-grid"></div>
+    </div>
+
+    <!-- 5. РАСКОПКИ -->
+    <div id="digs-tab" class="tab-content">
+        <div class="card-item" id="sphinx-lock-warning">
+            <p>🔒 Для раскопок необходимо построить <strong>Храм Сфинкса</strong> на своей базе!</p>
+        </div>
+        <div id="digs-content" style="display:none;">
+            <div class="card-item">
+                <div>
+                    <strong>🪲 Золотой Скарабей</strong><br>
+                    <small>Пассивный доход +10/сек</small>
+                </div>
+                <button class="btn-buy" onclick="buyArtifact('scarab')">1000 ⏳</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        // Состояние Игры
+        let state = {
+            sand: 0,
+            clickPower: 1,
+            critChance: 0, // в %
+            buildingBoost: 1, // Множитель дохода зданий
+            upgrades: { shovel: { lvl: 0, cost: 10 }, wind: { lvl: 0, cost: 25 }, sieve: { lvl: 0, cost: 100 }, thermo: { lvl: 0, cost: 250 } },
+            jars: { double: false },
+            grid: Array(9).fill(null),
+            isStorm: false,
+            hasSphinx: false
+        };
+
+        // Вкладки
+        function openTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Расчет пассивного дохода
+        function getCPS() {
+            let cps = state.upgrades.wind.lvl * 1;
+            state.grid.forEach(cell => {
+                if(cell === '🏭') cps += 5;
+                if(cell === '🌴') cps += 2;
+            });
+            return Math.floor(cps * state.buildingBoost);
+        }
+
+        // Обновление UI
+        function updateUI() {
+            document.getElementById('sand-count').innerText = Math.floor(state.sand);
+            document.getElementById('cps-count').innerText = getCPS();
+            
+            let currentPower = state.clickPower + (state.jars.double ? 2 : 0);
+            if(state.hasSphinx) currentPower = Math.floor(currentPower * 1.2);
+            document.getElementById('click-power-val').innerText = currentPower;
+
+            // Цены улучшений
+            document.getElementById('cost-shovel').innerText = state.upgrades.shovel.cost;
+            document.getElementById('lvl-shovel').innerText = state.upgrades.shovel.lvl;
+            document.getElementById('cost-wind').innerText = state.upgrades.wind.cost;
+            document.getElementById('lvl-wind').innerText = state.upgrades.wind.lvl;
+            document.getElementById('cost-sieve').innerText = state.upgrades.sieve.cost;
+            document.getElementById('cost-thermo').innerText = state.upgrades.thermo.cost;
+
+            renderGrid();
+        }
+
+        // Клик по Песку
+        const sandBtn = document.getElementById('sand-btn');
+        const clickArea = document.getElementById('click-area');
+
+        sandBtn.addEventListener('click', (e) => {
+            let gain = state.clickPower + (state.jars.double ? 2 : 0);
+            if(state.hasSphinx) gain *= 1.2;
+
+            // Расчет крита
+            let isCrit = Math.random() * 100 < state.critChance;
+            if (isCrit) gain *= 3;
+
+            // Множитель бури
+            if (state.isStorm) gain *= 3;
+
+            gain = Math.round(gain);
+            state.sand += gain;
+
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+
+            // Анимация числа
+            const pop = document.createElement('div');
+            pop.className = 'pop-number';
+            pop.innerText = `+${gain}` + (isCrit ? " 🌟" : "");
+            pop.style.left = `${e.clientX - clickArea.getBoundingClientRect().left - 20}px`;
+            pop.style.top = `${e.clientY - clickArea.getBoundingClientRect().top - 20}px`;
+            clickArea.appendChild(pop);
+            setTimeout(() => pop.remove(), 800);
+
+            updateUI();
+        });
+
+        // Покупка улучшений
+        function buyUpgrade(type) {
+            let up = state.upgrades[type];
+            if (state.sand >= up.cost) {
+                state.sand -= up.cost;
+                up.lvl++;
+                if(type === 'shovel') state.clickPower += 1;
+                if(type === 'sieve') state.critChance += 5;
+                if(type === 'thermo') state.buildingBoost += 0.15;
+                
+                up.cost = Math.floor(up.cost * 1.6);
+                updateUI();
+            } else {
+                tg.showAlert("Не хватает песка!");
+            }
+        }
+
+        // Покупка баночек
+        function buyJar(type) {
+            if(type === 'double') {
+                if(state.jars.double) return tg.showAlert("Уже куплено!");
+                if(state.sand >= 150) {
+                    state.sand -= 150;
+                    state.jars.double = true;
+                    document.getElementById('btn-jar-double').innerText = "Куплено";
+                    document.getElementById('btn-jar-double').disabled = true;
+                }
+            } else if(type === 'instant') {
+                if(state.sand >= 400) { state.sand += 100; state.sand -= 400; }
+            } else if(type === 'storm_jar') {
+                if(state.sand >= 300) { state.sand -= 300; triggerStorm(15); }
+            }
+            updateUI();
+        }
+
+        // Рендер Сетки Базы
+        function renderGrid() {
+            const gridEl = document.getElementById('base-grid');
+            gridEl.innerHTML = '';
+            state.grid.forEach((building, idx) => {
+                const cell = document.createElement('div');
+                cell.className = 'grid-cell';
+                cell.innerText = building ? building : '🏜️';
+                cell.onclick = () => buildOnCell(idx);
+                gridEl.appendChild(cell);
+            });
+        }
+
+        function buildOnCell(idx) {
+            if(state.grid[idx]) return tg.showAlert("Клетка уже занята!");
+            
+            // Меню постройки через диалог Telegram
+            tg.showPopup({
+                title: 'Постройка здания',
+                message: 'Выберите постройку:',
+                buttons: [
+                    {id: 'quarry', type: 'default', text: '🏭 Карьер (+5/сек) - 100 ⏳'},
+                    {id: 'oasis', type: 'default', text: '🌴 Оазис (+2/сек) - 250 ⏳'},
+                    {id: 'sphinx', type: 'default', text: '🏛️ Храм Сфинкса - 500 ⏳'},
+                    {type: 'cancel', text: 'Отмена'}
+                ]
+            }, (btnId) => {
+                if(!btnId) return;
+                let costs = { quarry: 100, oasis: 250, sphinx: 500 };
+                let icons = { quarry: '🏭', oasis: '🌴', sphinx: '🏛️' };
+
+                if(state.sand >= costs[btnId]) {
+                    state.sand -= costs[btnId];
+                    state.grid[idx] = icons[btnId];
+                    if(btnId === 'sphinx') {
+                        state.hasSphinx = true;
+                        document.getElementById('sphinx-lock-warning').style.display = 'none';
+                        document.getElementById('digs-content').style.display = 'block';
+                    }
+                    updateUI();
+                } else {
+                    tg.showAlert("Недостаточно песка!");
+                }
+            });
+        }
+
+        // Функция Песчаной Бури
+        function triggerStorm(durationSec) {
+            state.isStorm = true;
+            document.getElementById('storm-banner').style.display = 'block';
+            setTimeout(() => {
+                state.isStorm = false;
+                document.getElementById('storm-banner').style.display = 'none';
+            }, durationSec * 1000);
+        }
+
+        // Генерация случайных бурь раз в 45 сек
+        setInterval(() => {
+            if(Math.random() < 0.4 && !state.isStorm) {
+                triggerStorm(10);
+            }
+        }, 45000);
+
+        // Игровой цикл (Таймер дохода раз в секунду)
+        setInterval(() => {
+            state.sand += getCPS();
+            updateUI();
+        }, 1000);
+
+        updateUI();
+    </script>
+</body>
+</html>
